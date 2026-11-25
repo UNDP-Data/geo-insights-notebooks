@@ -3,33 +3,8 @@
 
 import marimo
 
-__generated_with = "0.25.2"
+__generated_with = "0.26.0"
 app = marimo.App(width="medium", app_title="RAPIDA one-pager")
-
-with app.setup:
-    import importlib
-    import subprocess
-    import sys
-    from pathlib import Path
-    import marimo as _mo
-
-    nb_dir = Path(_mo.notebook_dir() or Path(__file__).resolve().parent).resolve()
-    helper_dir = nb_dir / "_rapida_onepager"
-
-    if not helper_dir.is_dir() and Path("/workspace/.git").exists():
-        rel_helper = helper_dir.relative_to("/workspace").as_posix()
-        subprocess.run(
-            ["git", "-C", "/workspace", "sparse-checkout", "add", rel_helper],
-            check=True,
-        )
-
-    if str(nb_dir) not in sys.path:
-        sys.path.insert(0, str(nb_dir))
-
-    importlib.invalidate_caches()
-
-    assert helper_dir.is_dir(), f"Missing {helper_dir}; nb_dir has: {[p.name for p in nb_dir.iterdir()]}"
-
 
 
 with app.setup(hide_code=True):
@@ -38,7 +13,7 @@ with app.setup(hide_code=True):
     import subprocess
     import sys
     import tempfile
-
+    from pathlib import Path
 
     import marimo as mo
 
@@ -532,21 +507,11 @@ def _(cfg, rapida_btn, rapida_opts, split_info, stat_pick):
     _rows = "\n".join(f"- {'✅' if ok else '▫️'} {t}" for t, ok in rapida_report["rows"])
     mo.vstack(([_run_msg] if _run_msg else []) +
               [mo.md(f"**Project** `{rapida_project}`\n\n{_rows}")])
-    return rapida_report, selection
+    return rapida_project, rapida_report, selection
 
 
 @app.cell(hide_code=True)
 def _(card, problems, rapida_catalog, rapida_opts, rapida_report, selection):
-def _(
-    card,
-    flow,
-    mo,
-    problems,
-    rapida_catalog,
-    rapida_opts,
-    rapida_report,
-    selection,
-):
     mo.stop(not rapida_report["ready"], problems(rapida_report["errors"], "RAPIDA results not ready:"))
     rapida_info = dict(gpkg=rapida_report["gpkg"], year=int(rapida_opts.value["year"]),
                        selected=flow.selected_catalog(rapida_catalog, selection))
@@ -812,7 +777,7 @@ def _(
               ([mo.accordion({"Open the HTML page here": mo.iframe(_html.read_text(encoding="utf-8"), height="900px")})]
                if _html else []) +
               [mo.md(f"Also saved on the server in `{cfg['out_dir']}`.")])
-    return
+    return (result,)
 
 
 if __name__ == "__main__":

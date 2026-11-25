@@ -46,6 +46,18 @@ def initialized():
         return False
 
 
+def ensure_initialized(echo=print):
+    """RAPIDA needs ~/.rapida/config.json (made by `rapida init`); no sign-in is needed for create/assess.
+    -> (ok, message)."""
+    if initialized():
+        return True, "initialised"
+    try:
+        run("init", "--no-input", echo=echo)
+    except Exception as e:
+        return False, f"rapida init failed: {e}"
+    return (True, "initialised") if initialized() else (False, "rapida init did not write ~/.rapida/config.json")
+
+
 def kind_of(var, operator):
     if operator in ("sum", "count"):
         return "count"
@@ -68,6 +80,8 @@ def catalog():
     """DataFrame(component, variable, title, operator, kind, unit) and whether it came from RAPIDA itself."""
     rows, live = [], False
     try:
+        if available():
+            ensure_initialized(echo=lambda *a: None)
         from rapida.session import Session
         with Session() as s:
             for comp in sorted(s.get_components()):
@@ -117,8 +131,7 @@ def run(command, args, isolated=None, echo=print):
     isolated=True (default): in a separate Python process of the same environment. RAPIDA applies nest_asyncio
     and calls asyncio.run() while downloading; inside the Jupyter kernel that nests in the kernel's own event
     loop ("coroutine Kernel.shell_main was never awaited", "Task was destroyed but it is pending!") and can drop
-    widget messages or hang the kernel. A child process keeps both apart. The sign-in made in the kernel is
-    reused: RAPIDA keeps it in ~/.rapida."""
+    widget messages or hang the kernel. A child process keeps both apart."""
     isolated = ISOLATED if isolated is None else isolated
     if not isolated:
         from rapida.cli.run import run_cmd
@@ -178,9 +191,9 @@ def create_project(name, dest_folder, polygons_path):
         stale = path.with_name(f"{name}_incomplete_{_dt.datetime.now():%H%M%S}")
         path.rename(stale)
         print(f"⚠ {path.name} was left by an unfinished attempt (no rapida.json); moved to {stale.name}")
-    if not initialized():
-        raise RuntimeError("RAPIDA is not initialised / signed in. Run the sign-in cell of the launcher notebook "
-                           "(run_cmd('init', '--no-input')) and try again.")
+    ok, msg = ensure_initialized()
+    if not ok:
+        raise RuntimeError(msg)
     Path(dest_folder).mkdir(parents=True, exist_ok=True)
     try:
         run("create", f"{shlex.quote(name)} {shlex.quote(str(dest_folder))} -p {shlex.quote(str(polygons_path))}")
@@ -189,7 +202,7 @@ def create_project(name, dest_folder, polygons_path):
     if not is_project(path):
         raise RuntimeError(
             f"RAPIDA did not finish creating the project at {path} (no rapida.json). See the RAPIDA messages in "
-            "the log. Common causes: not signed in; no write access to the folder; or the disk cannot lock "
+            "the log. Common causes: no write access to the folder; or the disk cannot lock "
             "GeoPackages (network share) – then set Folder to a local disk or to where earlier RAPIDA projects worked.")
     return path
 

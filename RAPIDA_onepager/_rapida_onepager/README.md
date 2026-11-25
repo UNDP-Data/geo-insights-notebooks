@@ -1,6 +1,6 @@
 # RAPIDA one-pager – helper package
 
-Code behind the marimo notebook `crisis_response/rapida_onepager.py`. The folder name starts with `_` so it is a
+Code behind the marimo notebook `RAPIDA_onepager/rapida_onepager.py`. The folder name starts with `_` so it is a
 helper module, not a notebook.
 
 | Module | Role |
@@ -9,7 +9,6 @@ helper module, not a notebook.
 | `hazard.py` | GDACS API and files → hazard polygons (earthquake bands grouped into whole MMI classes, epicentre kept, 100 km circle dropped) |
 | `admin.py` | OCHA COD-AB from HDX, or a file / folder / File GDB |
 | `split.py` | Admin units cut by the hazard; checks; RAPIDA input |
-| `auth.py` | RAPIDA sign-in without a terminal (see below) |
 | `rapida_runner.py` | `rapida create` / `assess` in a child process; project status |
 | `stats.py` | Merge `stats.*` layers on `part_key`; per-unit exposed / total / %; results GeoPackage |
 | `maps.py` | Map JPG + locator PNG for the poster's map window |
@@ -20,18 +19,23 @@ helper module, not a notebook.
 
 ## Python packages the server needs
 
-marimo, pandas, numpy, pyarrow, shapely ≥ 2, geopandas, pyogrio, pyproj, matplotlib, pillow, requests,
-jsonschema, and **rapida** (which brings its own playwright for the sign-in).
-Optional: rasterio (permanent-water removal for floods); Chromium for playwright (`playwright install chromium`)
-for the headless poster check, PDF and PNG – without it the HTML is still produced.
+The notebook checks them when it opens and lists any that are missing. With pixi (conda-forge):
 
-## RAPIDA sign-in on a server
+```
+pixi add geopandas pyogrio pyproj shapely matplotlib pillow jsonschema requests pyarrow
+pixi add gdal rasterio                                                  # gdal: needed by rapida; rasterio: optional
+pixi add --pypi playwright "rapida @ git+https://github.com/UNDP-Data/rapida.git"
+pixi run playwright install chromium                                    # headless check, PDF and PNG
+```
 
-RAPIDA stores an encrypted token in `~/.rapida` of the OS account running the server and renews it on its own.
-When there is none, step 5 shows a sign-in form: e-mail and password are passed only to RAPIDA's own login, in a
-child process (through the `RAPIDA_USER` / `RAPIDA_PASSWORD` variables RAPIDA reads), and the Microsoft
-Authenticator number is shown in the page. Because the token belongs to the server account, **everyone using the
-same server shares one RAPIDA sign-in**.
+RAPIDA is not on PyPI or conda-forge, so it is installed from GitHub. Without playwright/Chromium the HTML is
+still produced, without the headless check, PDF and PNG.
+
+## No RAPIDA sign-in needed
+
+`rapida create` and `rapida assess` read public data (GeoHub, WorldPop), so no UNDP sign-in is needed. The notebook
+runs `rapida init --no-input` by itself the first time, which writes `~/.rapida/config.json`. A sign-in
+(`rapida auth`) is only needed for RAPIDA's upload / publish to UNDP Azure, which this notebook does not use.
 
 ## Running RAPIDA
 

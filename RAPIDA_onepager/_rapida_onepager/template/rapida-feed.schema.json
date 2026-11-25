@@ -1,0 +1,551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rapida-feed.schema.json",
+  "title": "RAPIDA one-pager feed",
+  "description": "The data feed for the RAPIDA one-pager template. Mirrors the RULES in js/schema.js; keep the two in step. String limits are in characters (Unicode code points), as counted by Python len() and JavaScript Array.from(). Extended by the RAPIDA one-pager app: lang, labels, indicators_show_empty, map.legend_ramp, map.legend[].shape, map.inset_position; vulnerable is optional.",
+  "type": "object",
+  "required": [
+    "meta",
+    "key_figure",
+    "key_messages",
+    "map",
+    "indicators",
+    "narrative",
+    "population_groups",
+    "contact"
+  ],
+  "properties": {
+    "theme": {
+      "enum": [
+        "approved",
+        "clean"
+      ]
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "org_line",
+        "title",
+        "location",
+        "date_line"
+      ],
+      "properties": {
+        "org_line": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 34
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 42
+        },
+        "date_line": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        }
+      }
+    },
+    "headings": {
+      "type": "object",
+      "properties": {
+        "key_figures": {
+          "type": "string",
+          "maxLength": 18
+        },
+        "key_messages": {
+          "type": "string",
+          "maxLength": 18
+        }
+      }
+    },
+    "key_figure": {
+      "type": "object",
+      "required": [
+        "label",
+        "value"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 18
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 999999999
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 62
+        }
+      }
+    },
+    "key_messages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "icon",
+          "text"
+        ],
+        "properties": {
+          "icon": {
+            "enum": [
+              "flood",
+              "alert",
+              "analysis"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 165
+          }
+        }
+      }
+    },
+    "map": {
+      "type": "object",
+      "required": [
+        "preserveAspectRatio",
+        "alt",
+        "title_chip"
+      ],
+      "properties": {
+        "src": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "Map image URL (SVG, PNG or JPG). Preferred over svg."
+        },
+        "svg": {
+          "type": "string",
+          "pattern": "<svg[^>]*\\sviewBox\\s*=",
+          "description": "Inline SVG markup, trusted output only. Colours as attributes, not <style>."
+        },
+        "width": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Image width in pixels (with src)"
+        },
+        "height": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Image height in pixels (with src)"
+        },
+        "viewBox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          ],
+          "description": "[x, y, width, height] of the part of the map shown"
+        },
+        "preserveAspectRatio": {
+          "type": "string",
+          "pattern": "^(none|x(Min|Mid|Max)Y(Min|Mid|Max)( (meet|slice))?)$"
+        },
+        "alt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "title_chip": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "units_per_km": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Map units per kilometre, in the map's projection at its centre. Omit to hide the scale bar."
+        },
+        "legend": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "color"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "shape": {
+                "enum": [
+                  "dot",
+                  "square",
+                  "outline",
+                  "star",
+                  "line"
+                ]
+              }
+            }
+          }
+        },
+        "labels": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": [
+              "text",
+              "x",
+              "y"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
+              "x": {
+                "type": "number",
+                "description": "viewBox coordinates"
+              },
+              "y": {
+                "type": "number",
+                "description": "viewBox coordinates"
+              },
+              "level": {
+                "enum": [
+                  "country",
+                  "place"
+                ]
+              }
+            }
+          }
+        },
+        "locator": {
+          "type": "object",
+          "properties": {
+            "src": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "alt": {
+              "type": "string",
+              "maxLength": 140
+            }
+          }
+        },
+        "legend_ramp": {
+          "type": "object",
+          "description": "Intensity colour ramp (earthquakes)",
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 24
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 9,
+              "items": {
+                "type": "object",
+                "required": [
+                  "label",
+                  "color"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "inset_position": {
+          "enum": [
+            "tl",
+            "tr",
+            "bl",
+            "br"
+          ],
+          "description": "Corner of the map for the locator inset; legend and scale bar follow its side"
+        },
+        "inset_shape": {
+          "enum": [
+            "portrait",
+            "landscape"
+          ],
+          "description": "Locator box shape; landscape for wide countries"
+        },
+        "frame": {
+          "enum": [
+            "framed",
+            "bleed"
+          ],
+          "description": "Approved layout: 'framed' (default) keeps the map inside the page margins, clear of the key-figures column; 'bleed' is the original edge-to-edge window"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "src"
+          ],
+          "properties": {
+            "src": {
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "svg"
+          ],
+          "properties": {
+            "svg": {
+              "minLength": 1
+            }
+          }
+        }
+      ],
+      "if": {
+        "required": [
+          "src"
+        ],
+        "not": {
+          "required": [
+            "svg"
+          ]
+        }
+      },
+      "then": {
+        "required": [
+          "viewBox",
+          "width",
+          "height"
+        ]
+      }
+    },
+    "indicators": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "description": "Shown in this order; indicators with value null are left out (unless indicators_show_empty) and the band re-flows for 1-6 items",
+      "items": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 28
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 999000000000000,
+            "description": "null shows a dash (no data)"
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 5
+          },
+          "unit_position": {
+            "enum": [
+              "before",
+              "after"
+            ]
+          },
+          "format": {
+            "enum": [
+              "number",
+              "compact"
+            ]
+          }
+        }
+      }
+    },
+    "narrative": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 470
+    },
+    "vulnerable": {
+      "type": "object",
+      "required": [
+        "title",
+        "pct"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 75
+        }
+      },
+      "description": "Optional. Leave out to hide the card"
+    },
+    "population_groups": {
+      "type": "object",
+      "required": [
+        "title",
+        "items"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 44
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "pct"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10
+              },
+              "pct": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 100
+        }
+      }
+    },
+    "disclaimer": {
+      "type": "string",
+      "maxLength": 210
+    },
+    "methodology": {
+      "type": "string",
+      "maxLength": 760
+    },
+    "contact": {
+      "type": "object",
+      "required": [
+        "email",
+        "website_label",
+        "website_url"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+        },
+        "website_label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "website_url": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://"
+        }
+      }
+    },
+    "lang": {
+      "enum": [
+        "en",
+        "fr",
+        "es"
+      ],
+      "description": "Poster language; also sets number formatting"
+    },
+    "indicators_show_empty": {
+      "type": "boolean",
+      "description": "Show indicators with value null as 'No data' instead of leaving them out"
+    },
+    "labels": {
+      "type": "object",
+      "description": "Fixed page texts in the poster language",
+      "properties": {
+        "methodology": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "more_info": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 12
+        },
+        "website": {
+          "type": "string",
+          "maxLength": 12
+        },
+        "no_data": {
+          "type": "string",
+          "maxLength": 14
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 10
+        }
+      }
+    }
+  }
+}

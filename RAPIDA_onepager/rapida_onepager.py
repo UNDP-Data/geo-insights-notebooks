@@ -3,21 +3,47 @@
 
 import marimo
 
-__generated_with = "0.26.0"
+__generated_with = "0.25.2"
 app = marimo.App(width="medium", app_title="RAPIDA one-pager")
+
+with app.setup:
+    import importlib
+    import subprocess
+    import sys
+    from pathlib import Path
+    import marimo as _mo
+
+    nb_dir = Path(_mo.notebook_dir() or Path(__file__).resolve().parent).resolve()
+    helper_dir = nb_dir / "_rapida_onepager"
+
+    if not helper_dir.is_dir() and Path("/workspace/.git").exists():
+        rel_helper = helper_dir.relative_to("/workspace").as_posix()
+        subprocess.run(
+            ["git", "-C", "/workspace", "sparse-checkout", "add", rel_helper],
+            check=True,
+        )
+
+    if str(nb_dir) not in sys.path:
+        sys.path.insert(0, str(nb_dir))
+
+    importlib.invalidate_caches()
+
+    assert helper_dir.is_dir(), f"Missing {helper_dir}; nb_dir has: {[p.name for p in nb_dir.iterdir()]}"
+
 
 
 @app.cell(hide_code=True)
 def _():
-    import sys
+
     import tempfile
-    from pathlib import Path
+
 
     import marimo as mo
 
-    _here = Path(str(mo.notebook_dir() or Path.cwd()))
-    if str(_here) not in sys.path:
-        sys.path.insert(0, str(_here))
+    #_here = Path(str(mo.notebook_dir() or Path.cwd()))
+
+    # if str(_here) not in sys.path:
+    #     sys.path.insert(0, str(_here))
 
     from _rapida_onepager import admin as A
     from _rapida_onepager import auth, flow, i18n
@@ -32,18 +58,17 @@ def _():
 
     def card(text, kind="success"):
         return mo.callout(mo.md(text), kind=kind)
+
     return (
         A,
         CRISIS_TYPES,
         LANGS,
-        Path,
         R,
         ROMAN,
         THEMES,
         auth,
         card,
         flow,
-        i18n,
         mo,
         problems,
         tempfile,
@@ -171,7 +196,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(A, Path, adm_input, adm_src, card, cfg, flow, hdx_btn, mo, waiting):
+def _(A, adm_input, adm_src, card, cfg, flow, hdx_btn, mo, waiting):
     _src, _v = adm_src.value["source"], adm_input.value
     adm_dataset, adm_source_label = None, None
     if _src == "hdx" and _v.get("resource"):
@@ -195,7 +220,7 @@ def _(A, Path, adm_input, adm_src, card, cfg, flow, hdx_btn, mo, waiting):
 
 
 @app.cell(hide_code=True)
-def _(A, Path, adm_dataset, adm_src, mo, problems):
+def _(A, adm_dataset, adm_src, mo, problems):
     _layers = A.find_vector_layers(adm_dataset)
     mo.stop(not _layers, problems([f"No polygon layers found in {Path(adm_dataset).name}"]))
     _opts = {f"{Path(ds).name} › {ly}": (ds, ly) for ds, ly in _layers}
@@ -490,7 +515,7 @@ def _(mo, split_info):
 
 
 @app.cell(hide_code=True)
-def _(Path, R, cfg, flow, mo, rapida_btn, rapida_opts, split_info, stat_pick):
+def _(R, cfg, flow, mo, rapida_btn, rapida_opts, split_info, stat_pick):
     _o = rapida_opts.value
     R.ISOLATED = bool(_o["isolated"])
     selection = {c: v for c, v in stat_pick.value.items() if v}
@@ -510,11 +535,20 @@ def _(Path, R, cfg, flow, mo, rapida_btn, rapida_opts, split_info, stat_pick):
     _rows = "\n".join(f"- {'✅' if ok else '▫️'} {t}" for t, ok in rapida_report["rows"])
     mo.vstack(([_run_msg] if _run_msg else []) +
               [mo.md(f"**Project** `{rapida_project}`\n\n{_rows}")])
-    return rapida_project, rapida_report, selection
+    return rapida_report, selection
 
 
 @app.cell(hide_code=True)
-def _(card, flow, mo, problems, rapida_catalog, rapida_opts, rapida_report, selection):
+def _(
+    card,
+    flow,
+    mo,
+    problems,
+    rapida_catalog,
+    rapida_opts,
+    rapida_report,
+    selection,
+):
     mo.stop(not rapida_report["ready"], problems(rapida_report["errors"], "RAPIDA results not ready:"))
     rapida_info = dict(gpkg=rapida_report["gpkg"], year=int(rapida_opts.value["year"]),
                        selected=flow.selected_catalog(rapida_catalog, selection))
@@ -725,7 +759,7 @@ def _(adm_info, cfg, content_choice, flow, hz_info, mo, rapida_info, st):
 
 
 @app.cell(hide_code=True)
-def _(card, cfg, content_choice, content_text, flow, hz_info, mo, problems, st):
+def _(card, cfg, content_choice, content_text, flow, hz_info, problems, st):
     _c, _v = content_choice.value, content_text.value
     _slots = [dict(src=src, **vals) for src, vals in zip(_c["slots"], _v["slots"])]
     _bars = [dict(src=src, label=lab) for src, lab in zip(_c["bars"], _v["bars"])]
@@ -793,7 +827,7 @@ def _(
               ([mo.accordion({"Open the HTML page here": mo.iframe(_html.read_text(encoding="utf-8"), height="900px")})]
                if _html else []) +
               [mo.md(f"Also saved on the server in `{cfg['out_dir']}`.")])
-    return (result,)
+    return
 
 
 if __name__ == "__main__":

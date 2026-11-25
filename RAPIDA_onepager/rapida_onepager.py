@@ -32,24 +32,63 @@ with app.setup:
 
 
 
-@app.cell(hide_code=True)
-def _():
-
+with app.setup(hide_code=True):
+    import importlib
+    import importlib.util
+    import subprocess
+    import sys
     import tempfile
 
 
     import marimo as mo
 
-    #_here = Path(str(mo.notebook_dir() or Path.cwd()))
+    # Connect the helper folder _rapida_onepager, which sits next to this notebook.
+    nb_dir = Path(mo.notebook_dir() or Path(__file__).resolve().parent).resolve()
+    helper_dir = nb_dir / "_rapida_onepager"
 
-    # if str(_here) not in sys.path:
-    #     sys.path.insert(0, str(_here))
+    # On the platform the repository is a sparse checkout: bring the helper folder in if it is not there yet.
+    if not helper_dir.is_dir() and Path("/workspace/.git").exists() and helper_dir.is_relative_to("/workspace"):
+        try:
+            subprocess.run(["git", "-C", "/workspace", "sparse-checkout", "add",
+                            helper_dir.relative_to("/workspace").as_posix()], check=True, capture_output=True)
+        except Exception as _ex:
+            print(f"git sparse-checkout add failed: {_ex}", file=sys.stderr)
 
-    from _rapida_onepager import admin as A
-    from _rapida_onepager import auth, flow, i18n
-    from _rapida_onepager import rapida_runner as R
-    from _rapida_onepager.config import CRISIS_TYPES, LANGS, ROMAN, THEMES
+    if str(nb_dir) not in sys.path:
+        sys.path.insert(0, str(nb_dir))
+    importlib.invalidate_caches()
 
+    # Packages the helper needs (module name: package name).
+    REQUIRED = {"geopandas": "geopandas", "pyogrio": "pyogrio", "pyproj": "pyproj", "shapely": "shapely",
+                "matplotlib": "matplotlib", "PIL": "pillow", "jsonschema": "jsonschema", "requests": "requests",
+                "pyarrow": "pyarrow", "pandas": "pandas", "numpy": "numpy"}
+    OPTIONAL = {"rapida": "rapida – needed for step 5 (running the assessment). Not on PyPI or conda-forge: "
+                          "`pixi add gdal` then `pixi add --pypi \"rapida @ git+https://github.com/UNDP-Data/rapida.git\"`",
+                "playwright": "playwright – headless check, PDF and PNG: `pixi add --pypi playwright`, then "
+                              "`pixi run playwright install chromium`",
+                "rasterio": "rasterio – removing permanent water from flood extents: `pixi add rasterio`"}
+    MISSING = [pkg for mod, pkg in REQUIRED.items() if importlib.util.find_spec(mod) is None]
+
+    # Import the helper modules (by name string, so the platform never tries to pip-install "_rapida_onepager").
+    A = R = flow = i18n = None
+    CRISIS_TYPES = LANGS = ROMAN = THEMES = None
+    HELPER_ERROR = None
+    if not helper_dir.is_dir():
+        HELPER_ERROR = f"Missing {helper_dir}; {nb_dir} has: {sorted(p.name for p in nb_dir.iterdir())}"
+    elif not MISSING:
+        try:
+            A = importlib.import_module("_rapida_onepager.admin")
+            R = importlib.import_module("_rapida_onepager.rapida_runner")
+            flow = importlib.import_module("_rapida_onepager.flow")
+            i18n = importlib.import_module("_rapida_onepager.i18n")
+            _cfg = importlib.import_module("_rapida_onepager.config")
+            CRISIS_TYPES, LANGS, ROMAN, THEMES = _cfg.CRISIS_TYPES, _cfg.LANGS, _cfg.ROMAN, _cfg.THEMES
+        except Exception as _ex:
+            HELPER_ERROR = f"{type(_ex).__name__}: {_ex}"
+
+
+@app.cell(hide_code=True)
+def _():
     def problems(errs, title="Please fix:"):
         return mo.callout(mo.md(f"**{title}**\n\n" + "\n".join(f"- {e}" for e in errs)), kind="danger")
 
@@ -58,26 +97,31 @@ def _():
 
     def card(text, kind="success"):
         return mo.callout(mo.md(text), kind=kind)
-
-    return (
-        A,
-        CRISIS_TYPES,
-        LANGS,
-        R,
-        ROMAN,
-        THEMES,
-        auth,
-        card,
-        flow,
-        mo,
-        problems,
-        tempfile,
-        waiting,
-    )
+    return card, problems, waiting
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
+    # Report what the setup cell could not do, instead of leaving the page blank. Step 1 waits for helper_ok.
+    mo.stop(bool(MISSING), mo.callout(mo.md(
+        "**This server's Python environment is missing packages the notebook needs:** "
+        + ", ".join(f"`{m}`" for m in MISSING)
+        + "\n\nAdd them to the platform's environment (one name per package, without a leading dash), "
+          "or with pixi:\n\n" + f"```\npixi add {' '.join(MISSING)}\n```"), kind="danger"))
+    mo.stop(HELPER_ERROR is not None, mo.callout(mo.md(
+        "**The notebook's helper folder `_rapida_onepager` could not be loaded.**\n\n"
+        f"```\n{HELPER_ERROR}\n```\n\n"
+        "It must sit next to `rapida_onepager.py`. Do **not** install a package called `rapida-onepager`: "
+        "it does not exist."), kind="danger"))
+    helper_ok = True
+    _absent = [why for mod, why in OPTIONAL.items() if importlib.util.find_spec(mod) is None]
+    (mo.callout(mo.md("**Not installed on this server (optional):**\n\n" + "\n".join(f"- {w}" for w in _absent)),
+                kind="warn") if _absent else None)
+    return (helper_ok,)
+
+
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     # RAPIDA one-pager
 
@@ -102,7 +146,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(CRISIS_TYPES, LANGS, THEMES, flow, mo, tempfile):
+def _(helper_ok):
     _e = dict(
         crisis=mo.ui.radio(options={v: k for k, v in CRISIS_TYPES.items()}, value=CRISIS_TYPES["flood"]),
         lang=mo.ui.radio(options={v: k for k, v in LANGS.items()}, value=LANGS["en"], inline=True),
@@ -142,7 +186,7 @@ def _(CRISIS_TYPES, LANGS, THEMES, flow, mo, tempfile):
 
 
 @app.cell(hide_code=True)
-def _(card, flow, mo, problems, setup_form, waiting):
+def _(card, problems, setup_form, waiting):
     mo.stop(setup_form.value is None, waiting("Fill in step 1 and press **Validate & continue**."))
     cfg, _errs = flow.make_config(setup_form.value)
     mo.stop(bool(_errs), problems(_errs))
@@ -151,7 +195,7 @@ def _(card, flow, mo, problems, setup_form, waiting):
 
 
 @app.cell(hide_code=True)
-def _(cfg, mo):
+def _(cfg):
     adm_src = mo.ui.dictionary({
         "source": mo.ui.radio(options={"OCHA COD-AB from HDX": "hdx", "Upload a file": "upload",
                                        "File on the server": "server"},
@@ -164,7 +208,7 @@ def _(cfg, mo):
 
 
 @app.cell(hide_code=True)
-def _(A, adm_src, cfg, mo):
+def _(adm_src, cfg):
     _src = adm_src.value["source"]
     _items, _note = {}, ""
     if _src == "hdx":
@@ -190,13 +234,13 @@ def _(A, adm_src, cfg, mo):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     hdx_btn = mo.ui.run_button(label="Download from HDX")
     return (hdx_btn,)
 
 
 @app.cell(hide_code=True)
-def _(A, adm_input, adm_src, card, cfg, flow, hdx_btn, mo, waiting):
+def _(adm_input, adm_src, card, cfg, hdx_btn, waiting):
     _src, _v = adm_src.value["source"], adm_input.value
     adm_dataset, adm_source_label = None, None
     if _src == "hdx" and _v.get("resource"):
@@ -220,7 +264,7 @@ def _(A, adm_input, adm_src, card, cfg, flow, hdx_btn, mo, waiting):
 
 
 @app.cell(hide_code=True)
-def _(A, adm_dataset, adm_src, mo, problems):
+def _(adm_dataset, adm_src, problems):
     _layers = A.find_vector_layers(adm_dataset)
     mo.stop(not _layers, problems([f"No polygon layers found in {Path(adm_dataset).name}"]))
     _opts = {f"{Path(ds).name} › {ly}": (ds, ly) for ds, ly in _layers}
@@ -232,7 +276,7 @@ def _(A, adm_dataset, adm_src, mo, problems):
 
 
 @app.cell(hide_code=True)
-def _(adm_layer, adm_src, cfg, flow, mo):
+def _(adm_layer, adm_src, cfg):
     _ds, _ly = adm_layer.value
     _level = adm_src.value["level"]
     _fields = flow.layer_fields(_ds, _ly)
@@ -266,18 +310,7 @@ def _(adm_layer, adm_src, cfg, flow, mo):
 
 
 @app.cell(hide_code=True)
-def _(
-    adm_dataset,
-    adm_form,
-    adm_layer,
-    adm_source_label,
-    adm_src,
-    card,
-    flow,
-    mo,
-    problems,
-    waiting,
-):
+def _(adm_dataset, adm_form, adm_layer, adm_source_label, adm_src, card, problems, waiting):
     mo.stop(adm_form.value is None, waiting("Check the fields and press **Load boundaries**."))
     _v = adm_form.value
     _ds, _ly = adm_layer.value
@@ -296,7 +329,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(ROMAN, adm_info, cfg, flow, mo):
+def _(adm_info, cfg):
     _crisis = cfg["crisis"]
     if _crisis == "admin":
         _e = dict(units=mo.ui.multiselect(options=flow.unit_options(adm_info), full_width=True))
@@ -348,7 +381,7 @@ def _(ROMAN, adm_info, cfg, flow, mo):
 
 
 @app.cell(hide_code=True)
-def _(adm_info, card, cfg, flow, hz_form, mo, problems, waiting):
+def _(adm_info, card, cfg, hz_form, problems, waiting):
     mo.stop(hz_form.value is None, waiting("Fill in step 3 and press **Load crisis polygons**."))
     _v = hz_form.value
     _path = None
@@ -381,7 +414,7 @@ def _(adm_info, card, cfg, flow, hz_form, mo, problems, waiting):
 
 
 @app.cell(hide_code=True)
-def _(adm_info, card, cfg, flow, hz_info, mo, problems):
+def _(adm_info, card, cfg, hz_info, problems):
     with mo.status.spinner(title="Splitting admin units by the hazard …"):
         split_info = flow.do_split(cfg, adm_info, hz_info)
     _c = split_info["checks"]
@@ -404,69 +437,33 @@ def _(adm_info, card, cfg, flow, hz_info, mo, problems):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    get_auth_n, set_auth_n = mo.state(0)
-    return get_auth_n, set_auth_n
-
-
-@app.cell(hide_code=True)
-def _(auth, get_auth_n, mo, split_info):
-    get_auth_n()
-    _ = split_info
-    with mo.status.spinner(title="Checking the RAPIDA sign-in …"):
-        _ok, _text = auth.describe(auth.token_status())
-    mo.vstack([
-        mo.md("## 5 · RAPIDA"),
-        mo.callout(mo.md(_text + ("" if _ok else
-                                  " Sign in below; the sign-in is kept and renewed automatically afterwards.")),
-                   kind="success" if _ok else "warn"),
-    ])
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo, split_info):
+def _(split_info):
     _ = split_info                      # shown once step 4 is done
-    signin_form = mo.md(r"""
-    **Sign in to RAPIDA** (only when the line above asks for it)
-
-    UNDP e-mail {email}  password {password}
-
-    The password goes only to RAPIDA's own sign-in, in a separate process; it is not stored. After you press
-    *Sign in*, a number appears here: approve it in Microsoft Authenticator.
-    The sign-in is saved for the account running this server, so everyone using this server shares it.
-    """).batch(email=mo.ui.text(placeholder="name@undp.org", kind="email"),
-               password=mo.ui.text(kind="password")).form(submit_button_label="Sign in", clear_on_submit=True)
-    signin_form
-    return (signin_form,)
-
-
-@app.cell(hide_code=True)
-def _(auth, mo, set_auth_n, signin_form):
-    mo.stop(signin_form.value is None)
-    _v = signin_form.value
-    mo.stop(not (_v["email"] and _v["password"]), mo.callout("Give e-mail and password.", kind="warn"))
-
-    def _mfa(n):
-        mo.output.replace(mo.callout(mo.md(f"### Approve **{n}** in Microsoft Authenticator\nWaiting for approval …"),
-                                     kind="info"))
-
-    mo.output.replace(mo.callout("Signing in …", kind="neutral"))
-    _ok, _msg = auth.sign_in(_v["email"], _v["password"], echo=print, on_mfa=_mfa)
-    set_auth_n(lambda n: n + 1)
-    mo.output.replace(mo.callout(_msg, kind="success" if _ok else "danger"))
+    if R.available():
+        with mo.status.spinner(title="Preparing RAPIDA …"):
+            _ok, _msg = R.ensure_initialized()
+        _note = mo.callout(mo.md("RAPIDA is installed and ready. No sign-in is needed: the assessment uses "
+                                 "public data." if _ok else f"RAPIDA could not be initialised: {_msg}"),
+                           kind="success" if _ok else "danger")
+    else:
+        _note = mo.callout(mo.md(
+            "**RAPIDA is not installed in this Python environment.** You can still use an existing RAPIDA project "
+            "or results GeoPackage below. To run new assessments, install it (it needs GDAL):\n\n"
+            "```\npixi add gdal\npixi add --pypi \"rapida @ git+https://github.com/UNDP-Data/rapida.git\"\n```"),
+            kind="warn")
+    mo.vstack([mo.md("## 5 · RAPIDA"), _note])
     return
 
 
 @app.cell(hide_code=True)
-def _(R, split_info):
+def _(split_info):
     _ = split_info
     rapida_catalog, catalog_live = R.catalog()
     return catalog_live, rapida_catalog
 
 
 @app.cell(hide_code=True)
-def _(catalog_live, cfg, flow, mo, rapida_catalog):
+def _(catalog_live, cfg, rapida_catalog):
     _last = flow.last_selection(cfg["out_dir"].parent)
     _pick = {}
     for _comp, _g in rapida_catalog.groupby("component"):
@@ -485,7 +482,7 @@ def _(catalog_live, cfg, flow, mo, rapida_catalog):
 
 
 @app.cell(hide_code=True)
-def _(mo, split_info):
+def _(split_info):
     import datetime as _dt
     _ = split_info
     _y = _dt.date.today().year
@@ -507,7 +504,7 @@ def _(mo, split_info):
 
 
 @app.cell(hide_code=True)
-def _(mo, split_info):
+def _(split_info):
     _ = split_info
     rapida_btn = mo.ui.run_button(label="Create project & run assessment", kind="warn")
     rapida_btn
@@ -515,7 +512,7 @@ def _(mo, split_info):
 
 
 @app.cell(hide_code=True)
-def _(R, cfg, flow, mo, rapida_btn, rapida_opts, split_info, stat_pick):
+def _(cfg, rapida_btn, rapida_opts, split_info, stat_pick):
     _o = rapida_opts.value
     R.ISOLATED = bool(_o["isolated"])
     selection = {c: v for c, v in stat_pick.value.items() if v}
@@ -539,6 +536,7 @@ def _(R, cfg, flow, mo, rapida_btn, rapida_opts, split_info, stat_pick):
 
 
 @app.cell(hide_code=True)
+def _(card, problems, rapida_catalog, rapida_opts, rapida_report, selection):
 def _(
     card,
     flow,
@@ -559,7 +557,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo, rapida_info):
+def _(rapida_info):
     _ = rapida_info
     want_gdb = mo.ui.checkbox(label="Also write an Esri File Geodatabase (.gdb)")
     mo.vstack([mo.md("## 6 · Statistics and results GeoPackage"), want_gdb])
@@ -567,18 +565,7 @@ def _(mo, rapida_info):
 
 
 @app.cell(hide_code=True)
-def _(
-    adm_info,
-    card,
-    cfg,
-    flow,
-    hz_info,
-    mo,
-    problems,
-    rapida_info,
-    split_info,
-    want_gdb,
-):
+def _(adm_info, card, cfg, hz_info, problems, rapida_info, split_info, want_gdb):
     with mo.status.spinner(title="Merging RAPIDA results and computing statistics …"):
         try:
             st = flow.compute_stats(cfg, adm_info, hz_info, split_info, rapida_info["gpkg"], rapida_info["selected"],
@@ -601,7 +588,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(adm_info, cfg, mo):
+def _(adm_info, cfg):
     _e = {
         "corner": mo.ui.dropdown(options={"Automatic (emptiest corner)": "auto", "Top left": "tl", "Top right": "tr",
                                           "Bottom left": "bl", "Bottom right": "br"},
@@ -623,7 +610,7 @@ def _(adm_info, cfg, mo):
 
 
 @app.cell(hide_code=True)
-def _(adm_info, cfg, flow, hz_info, map_opts, mo, problems, st):
+def _(adm_info, cfg, hz_info, map_opts, problems, st):
     _o = map_opts.value
     with mo.status.spinner(title="Drawing the map and the locator …"):
         mapinfo = flow.draw_maps(cfg, adm_info, hz_info, st, frame=_o.get("frame", "framed"),
@@ -644,7 +631,7 @@ def _(adm_info, cfg, flow, hz_info, map_opts, mo, problems, st):
 
 
 @app.cell(hide_code=True)
-def _(cfg, flow, mo, rapida_info, st):
+def _(cfg, rapida_info, st):
     _sel = rapida_info["selected"]
     _heads = flow.headline_options(_sel, st["ps"])
     _hv = next((k for k, v in _heads.items() if v == "total"), next(iter(_heads)))
@@ -678,7 +665,7 @@ def _(cfg, flow, mo, rapida_info, st):
 
 
 @app.cell(hide_code=True)
-def _(adm_info, cfg, content_choice, flow, hz_info, mo, rapida_info, st):
+def _(adm_info, cfg, content_choice, hz_info, rapida_info, st):
     _c = content_choice.value
     _d = flow.draft_texts(cfg, adm_info, hz_info, st, _c["head"], _c["bar_mode"])
 
@@ -759,7 +746,7 @@ def _(adm_info, cfg, content_choice, flow, hz_info, mo, rapida_info, st):
 
 
 @app.cell(hide_code=True)
-def _(card, cfg, content_choice, content_text, flow, hz_info, problems, st):
+def _(card, cfg, content_choice, content_text, hz_info, problems, st):
     _c, _v = content_choice.value, content_text.value
     _slots = [dict(src=src, **vals) for src, vals in zip(_c["slots"], _v["slots"])]
     _bars = [dict(src=src, label=lab) for src, lab in zip(_c["bars"], _v["bars"])]
@@ -771,7 +758,7 @@ def _(card, cfg, content_choice, content_text, flow, hz_info, problems, st):
 
 
 @app.cell(hide_code=True)
-def _(content, mo):
+def _(content):
     _ = content
     gen_opts = mo.ui.dictionary({"pdf": mo.ui.checkbox(value=True, label="PDF (A4)"),
                                  "png": mo.ui.checkbox(value=True, label="PNG")})
@@ -780,7 +767,7 @@ def _(content, mo):
 
 
 @app.cell(hide_code=True)
-def _(content, mo):
+def _(content):
     _ = content
     gen_btn = mo.ui.run_button(label="Build the one-pager", kind="success")
     gen_btn
@@ -792,13 +779,11 @@ def _(
     cfg,
     content,
     content_errors,
-    flow,
     gen_btn,
     gen_opts,
     hz_info,
     mapinfo,
     meta,
-    mo,
     problems,
     st,
     waiting,

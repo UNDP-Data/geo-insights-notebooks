@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en" data-rapida-status="pending">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAPIDA one-pager</title>
+<!-- Sites allowed to supply ?feed=, besides this page's own site. Space-separated, e.g. "https://api.example.org" -->
+<meta name="rapida-feed-origins" content="">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Fallback typeface, used only where Proxima Nova is not installed or licensed for web -->
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/poster.css">
+<link rel="stylesheet" href="css/theme-clean.css">
+<link rel="stylesheet" href="css/extensions.css">
+</head>
+<body>
+
+<!-- Icon set (decorative) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ic-people" viewBox="0 0 88 92" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="25" cy="17" r="11"/><circle cx="63" cy="17" r="11"/>
+      <path d="M8 88V50a17 17 0 0 1 30-11"/><path d="M80 88V50a17 17 0 0 0-30-11"/>
+      <circle cx="44" cy="52" r="9"/><path d="M30 88V78a14 14 0 0 1 28 0v10"/>
+      <path d="M20 60v28M68 60v28"/>
+    </symbol>
+    <symbol id="ic-flood" viewBox="0 0 42 42" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 21 21 6l16 15"/><path d="M9 18v9M33 18v9"/><circle cx="21" cy="19" r="3.2"/>
+      <path d="M3 30c3-2.4 6-2.4 9 0s6 2.4 9 0 6-2.4 9 0 6 2.4 9 0"/><path d="M3 36c3-2.4 6-2.4 9 0s6 2.4 9 0 6-2.4 9 0 6 2.4 9 0"/>
+    </symbol>
+    <symbol id="ic-alert" viewBox="0 0 42 42" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 5 39 36H3Z"/><path d="M21 16v10"/><circle cx="21" cy="30.5" r="1" fill="currentColor"/>
+    </symbol>
+    <symbol id="ic-analysis" viewBox="0 0 42 42" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="21" cy="21" r="5"/><path d="M11 39v-3c0-4.5 4-7.5 10-7.5s10 3 10 7.5v3"/>
+      <path d="M21 3v8M8 8l6 6M34 8l-6 6M3 21h8M31 21h8"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- Feed problems are listed here on screen; never printed -->
+<aside class="report" role="alert" hidden><h2>This data feed needs attention</h2><ul></ul></aside>
+
+<main class="stage">
+  <article class="poster">
+
+    <header class="hd">
+      <p class="hd-org" data-fit="meta.org_line"></p>
+      <h1 class="hd-title" data-fit="meta.title"></h1>
+      <p class="hd-loc" data-fit="meta.location"></p>
+      <p class="hd-date" data-fit="meta.date_line"></p>
+      <img class="hd-logo" src="assets/undp-logo-white.png" alt="UNDP">
+    </header>
+
+    <section class="mainrow">
+      <div class="kf">
+        <h2 class="h3 kf-h" data-fit="headings.key_figures"></h2>
+        <div class="kf-fig">
+          <svg aria-hidden="true"><use href="#ic-people"/></svg>
+          <div><p class="kf-num"></p><p class="kf-lab" data-fit="key_figure.label"></p></div>
+        </div>
+        <p class="kf-note" data-fit="key_figure.note"></p>
+        <h2 class="h3 km-h" data-fit="headings.key_messages"></h2>
+        <ul class="km"></ul>
+      </div>
+
+      <figure class="map">
+        <!-- The map itself comes from the feed as an inline <svg> with viewBox + preserveAspectRatio.
+             Everything drawn over it below is HTML, so it stays crisp and editable. -->
+        <div class="map-art"></div>
+        <figcaption class="map-chip" data-fit="map.title_chip"></figcaption>
+        <div class="map-inset" hidden></div>
+        <ul class="map-legend"></ul>
+        <div class="map-scale" aria-label="Scale bar"></div>
+      </figure>
+    </section>
+
+    <section class="band">
+      <div class="band-in">
+        <dl class="ind"></dl>
+        <p class="narr" data-fit="narrative"></p>
+      </div>
+    </section>
+
+    <section class="cards">
+      <div class="card vul">
+        <h3 data-fit="vulnerable.title"></h3>
+        <div class="vul-row">
+          <svg aria-hidden="true"><use href="#ic-people"/></svg>
+          <div><p class="vul-pct"></p><p class="vul-cap" data-fit="vulnerable.caption"></p></div>
+        </div>
+      </div>
+      <div class="card grp">
+        <h3 data-fit="population_groups.title"></h3>
+        <div class="bars"></div>
+        <p class="grp-note" data-fit="population_groups.note"></p>
+      </div>
+    </section>
+
+    <section class="disc"><p data-fit="disclaimer"></p></section>
+
+    <footer class="ft">
+      <p class="ft-meth" data-fit="methodology"><b class="ft-meth-h">Methodology</b><span></span></p>
+      <p class="ft-contact"><strong class="ft-more">For More Information</strong><span class="sep">|</span><span><span class="ft-email-l">E-mail:</span> <a class="ft-mail" href="#"></a></span><span class="sep">|</span><span><span class="ft-web-l">Website:</span> <a class="ft-web" href="#"></a></span></p>
+    </footer>
+
+  </article>
+</main>
+
+<!-- Feed. The RAPIDA one-pager app injects the data here when it builds the poster. -->
+<script type="application/json" id="rapida-data">
+{}
+</script>
+<script src="js/schema.js"></script>
+<script src="js/render.js"></script>
+</body>
+</html>

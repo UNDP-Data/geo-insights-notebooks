@@ -6,7 +6,6 @@ import marimo
 __generated_with = "0.26.0"
 app = marimo.App(width="medium", app_title="RAPIDA one-pager")
 
-
 with app.setup(hide_code=True):
     import importlib
     import importlib.util
@@ -53,6 +52,7 @@ def _():
 
     def card(text, kind="success"):
         return mo.callout(mo.md(text), kind=kind)
+
     return card, problems, waiting
 
 
@@ -84,10 +84,75 @@ def _():
     i18n = importlib.import_module("_rapida_onepager.i18n")
     _cfg = importlib.import_module("_rapida_onepager.config")
     CRISIS_TYPES, LANGS, ROMAN, THEMES = _cfg.CRISIS_TYPES, _cfg.LANGS, _cfg.ROMAN, _cfg.THEMES
-    _absent = [why for mod, why in OPTIONAL.items() if importlib.util.find_spec(mod) is None]
-    (mo.callout(mo.md("**Not installed on this server (optional):**\n\n" + "\n".join(f"- {w}" for w in _absent)),
-                kind="warn") if _absent else None)
-    return A, CRISIS_TYPES, LANGS, R, ROMAN, THEMES, flow, i18n
+
+
+    return A, CRISIS_TYPES, LANGS, R, ROMAN, THEMES, flow
+
+
+@app.cell
+def _(flow):
+    # Optional packages: say what is missing and offer to install it from here (no terminal needed).
+    _ = flow                                 # only once the helper loaded
+    opt_absent = [mod for mod in OPTIONAL if importlib.util.find_spec(mod) is None]
+    opt_install = mo.ui.run_button(label="Install optional packages", kind="warn",
+                                   tooltip="Runs pixi on this server; can take several minutes")
+    (mo.callout(mo.vstack([
+        mo.md("**Not installed on this server (optional).** The notebook works without them; each adds:\n\n"
+              + "\n".join(f"- {OPTIONAL[m]}" for m in opt_absent)),
+        mo.hstack([opt_install, mo.md("Installs them into this server's environment with pixi. "
+                                      "rapida is large (it brings TensorFlow), so this can take 5–15 minutes.")],
+                  justify="start", align="center")]), kind="warn") if opt_absent else None)
+    return opt_absent, opt_install
+
+
+@app.cell
+def _(opt_absent, opt_install):
+    mo.stop(not opt_install.value)
+    import os as _os
+    import shutil as _shutil
+    _pixi = _os.environ.get("PIXI_EXE") or _shutil.which("pixi") or next(
+        (str(_p) for _p in (Path.home() / ".pixi/bin/pixi", Path("/usr/local/bin/pixi")) if _p.is_file()), None)
+    mo.stop(_pixi is None, mo.callout(mo.md(
+        "**pixi was not found on this server**, so the notebook cannot install packages itself. "
+        "Ask the platform administrator to run:\n\n```\npixi add gdal rasterio\npixi add --pypi playwright\n"
+        "pixi add --pypi \"rapida @ git+https://github.com/UNDP-Data/rapida.git\"\n"
+        "pixi run playwright install chromium\n```"), kind="danger"))
+    _man = _os.environ.get("PIXI_PROJECT_MANIFEST")
+    _where = ["--manifest-path", _man] if _man else []
+    _steps = []
+    _conda = (["gdal"] if "rapida" in opt_absent else []) + (["rasterio"] if "rasterio" in opt_absent else [])
+    if _conda:
+        _steps.append(("conda packages: " + ", ".join(_conda), [_pixi, "add", *_where, *_conda]))
+    if "playwright" in opt_absent:
+        _steps.append(("playwright", [_pixi, "add", *_where, "--pypi", "playwright"]))
+    if "rapida" in opt_absent:
+        _steps.append(("rapida (from GitHub)", [_pixi, "add", *_where, "--pypi",
+                                                "rapida @ git+https://github.com/UNDP-Data/rapida.git"]))
+    if "playwright" in opt_absent:
+        _steps.append(("Chromium for playwright", [sys.executable, "-m", "playwright", "install", "chromium"]))
+    _log, _failed = [], None
+    for _name, _cmd in _steps:
+        _log.append(f"$ {' '.join(_cmd)}")
+        with mo.status.spinner(title=f"Installing {_name} …"):
+            try:
+                _p = subprocess.run(_cmd, capture_output=True, text=True, timeout=3600)
+                _out, _rc = (_p.stdout or "") + (_p.stderr or ""), _p.returncode
+            except Exception as _ex:
+                _out, _rc = f"{type(_ex).__name__}: {_ex}", 1
+        _log.append(_out.strip()[-3000:])
+        if _rc != 0:
+            _failed = _name
+            break
+    importlib.invalidate_caches()
+    _now = [m for m in OPTIONAL if importlib.util.find_spec(m) is None]
+    mo.vstack([
+        mo.callout(mo.md(f"**Installing {_failed} failed.** The output is below; send it to the platform "
+                         "administrator (or to me)." if _failed else
+                         "**Done.** Restart the notebook (stop and start the kernel) so every cell picks up the "
+                         "new packages." + (f" Still not found: {', '.join(_now)}." if _now else "")),
+                   kind="danger" if _failed else "success"),
+        mo.accordion({"Installer output": mo.md("```\n" + "\n\n".join(_log) + "\n```")}),
+    ])
 
 
 @app.cell(hide_code=True)
@@ -112,11 +177,10 @@ def _():
 
     Each step opens when the one before it is complete. Changing an earlier step updates everything after it.
     """)
-    return
 
 
 @app.cell(hide_code=True)
-def _(CRISIS_TYPES, flow, LANGS, THEMES):
+def _(CRISIS_TYPES, LANGS, THEMES, flow):
     _e = dict(
         crisis=mo.ui.radio(options={v: k for k, v in CRISIS_TYPES.items()}, value=CRISIS_TYPES["flood"]),
         lang=mo.ui.radio(options={v: k for k, v in LANGS.items()}, value=LANGS["en"], inline=True),
@@ -280,7 +344,17 @@ def _(adm_layer, adm_src, cfg, flow):
 
 
 @app.cell(hide_code=True)
-def _(adm_dataset, adm_form, adm_layer, adm_source_label, adm_src, card, flow, problems, waiting):
+def _(
+    adm_dataset,
+    adm_form,
+    adm_layer,
+    adm_source_label,
+    adm_src,
+    card,
+    flow,
+    problems,
+    waiting,
+):
     mo.stop(adm_form.value is None, waiting("Check the fields and press **Load boundaries**."))
     _v = adm_form.value
     _ds, _ly = adm_layer.value
@@ -299,7 +373,7 @@ def _(adm_dataset, adm_form, adm_layer, adm_source_label, adm_src, card, flow, p
 
 
 @app.cell(hide_code=True)
-def _(adm_info, cfg, flow, ROMAN):
+def _(ROMAN, adm_info, cfg, flow):
     _crisis = cfg["crisis"]
     if _crisis == "admin":
         _e = dict(units=mo.ui.multiselect(options=flow.unit_options(adm_info), full_width=True))
@@ -422,7 +496,6 @@ def _(R, split_info):
             "```\npixi add gdal\npixi add --pypi \"rapida @ git+https://github.com/UNDP-Data/rapida.git\"\n```"),
             kind="warn")
     mo.vstack([mo.md("## 5 · RAPIDA"), _note])
-    return
 
 
 @app.cell(hide_code=True)
@@ -482,7 +555,7 @@ def _(split_info):
 
 
 @app.cell(hide_code=True)
-def _(cfg, flow, R, rapida_btn, rapida_opts, split_info, stat_pick):
+def _(R, cfg, flow, rapida_btn, rapida_opts, split_info, stat_pick):
     _o = rapida_opts.value
     R.ISOLATED = bool(_o["isolated"])
     selection = {c: v for c, v in stat_pick.value.items() if v}
@@ -502,11 +575,19 @@ def _(cfg, flow, R, rapida_btn, rapida_opts, split_info, stat_pick):
     _rows = "\n".join(f"- {'✅' if ok else '▫️'} {t}" for t, ok in rapida_report["rows"])
     mo.vstack(([_run_msg] if _run_msg else []) +
               [mo.md(f"**Project** `{rapida_project}`\n\n{_rows}")])
-    return rapida_project, rapida_report, selection
+    return rapida_report, selection
 
 
 @app.cell(hide_code=True)
-def _(card, flow, problems, rapida_catalog, rapida_opts, rapida_report, selection):
+def _(
+    card,
+    flow,
+    problems,
+    rapida_catalog,
+    rapida_opts,
+    rapida_report,
+    selection,
+):
     mo.stop(not rapida_report["ready"], problems(rapida_report["errors"], "RAPIDA results not ready:"))
     rapida_info = dict(gpkg=rapida_report["gpkg"], year=int(rapida_opts.value["year"]),
                        selected=flow.selected_catalog(rapida_catalog, selection))
@@ -525,7 +606,17 @@ def _(rapida_info):
 
 
 @app.cell(hide_code=True)
-def _(adm_info, card, cfg, flow, hz_info, problems, rapida_info, split_info, want_gdb):
+def _(
+    adm_info,
+    card,
+    cfg,
+    flow,
+    hz_info,
+    problems,
+    rapida_info,
+    split_info,
+    want_gdb,
+):
     with mo.status.spinner(title="Merging RAPIDA results and computing statistics …"):
         try:
             st = flow.compute_stats(cfg, adm_info, hz_info, split_info, rapida_info["gpkg"], rapida_info["selected"],
@@ -773,7 +864,6 @@ def _(
               ([mo.accordion({"Open the HTML page here": mo.iframe(_html.read_text(encoding="utf-8"), height="900px")})]
                if _html else []) +
               [mo.md(f"Also saved on the server in `{cfg['out_dir']}`.")])
-    return (result,)
 
 
 if __name__ == "__main__":
